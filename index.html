@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Family Tree</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Manrope:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="bg-grid" aria-hidden="true"></div>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <h1>Family Tree</h1>
+        <p>可编辑家谱系统</p>
+      </div>
+      <div class="toolbar">
+        <button id="seedBtn" class="ghost">载入示例</button>
+        <button id="resetBtn" class="danger">清空数据</button>
+        <button id="exportBtn" class="primary">导出 PNG</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="panel">
+        <section class="card">
+          <h2>人物管理</h2>
+          <form id="personForm" class="form-grid">
+            <input type="hidden" id="personId" />
+            <label>
+              姓名
+              <input id="personName" required maxlength="30" placeholder="例如：李明" />
+            </label>
+            <label>
+              性别
+              <select id="personGender">
+                <option value="unknown">未知</option>
+                <option value="male">男</option>
+                <option value="female">女</option>
+              </select>
+            </label>
+            <label>
+              出生年
+              <input id="personBirth" type="number" min="0" max="3000" placeholder="1990" />
+            </label>
+            <label>
+              备注
+              <input id="personNote" maxlength="40" placeholder="例如：长子" />
+            </label>
+            <input type="hidden" id="personAvatar" />
+            <label>
+              头像
+              <input id="personAvatarFile" type="file" accept="image/*" />
+            </label>
+            <div class="avatar-row">
+              <div class="avatar-preview-wrap">
+                <img id="avatarPreview" alt="头像预览" />
+                <span id="avatarPlaceholder">未设置头像</span>
+              </div>
+              <button type="button" id="clearAvatarBtn" class="ghost small">清除头像</button>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="primary">保存人物</button>
+              <button type="button" id="cancelEditBtn" class="ghost">取消编辑</button>
+            </div>
+          </form>
+          <ul id="peopleList" class="list"></ul>
+        </section>
+
+        <section class="card">
+          <h2>关系管理</h2>
+          <form id="relationForm" class="form-grid">
+            <label>
+              人物 A
+              <select id="fromId" required></select>
+            </label>
+            <label>
+              关系类型
+              <select id="relationType" required>
+                <option value="parent">A 是 B 的父/母</option>
+                <option value="spouse">A 与 B 是配偶</option>
+                <option value="sibling">A 与 B 是兄弟姐妹</option>
+              </select>
+            </label>
+            <label>
+              人物 B
+              <select id="toId" required></select>
+            </label>
+            <button type="submit" class="primary">添加关系</button>
+          </form>
+          <ul id="relationList" class="list"></ul>
+        </section>
+      </aside>
+
+      <section class="viz-wrap card">
+        <div class="viz-head">
+          <h2>家谱视图</h2>
+          <div class="viz-meta"><span id="stats"></span></div>
+        </div>
+        <div id="vizContainer" class="viz-container">
+          <svg id="treeSvg" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="family tree"></svg>
+          <span id="relationHint"></span>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <template id="personItemTemplate">
+    <li>
+      <div class="row-main"></div>
+      <div class="row-actions">
+        <button class="ghost small edit">编辑</button>
+        <button class="danger small delete">删除</button>
+      </div>
+    </li>
+  </template>
+
+  <template id="relationItemTemplate">
+    <li>
+      <div class="row-main"></div>
+      <div class="row-actions">
+        <button class="danger small delete">删除</button>
+      </div>
+    </li>
+  </template>
+
+  <script src="./app.js"></script>
+</body>
+</html>
