@@ -37,6 +37,10 @@ const stats = document.getElementById('stats');
 const seedBtn = document.getElementById('seedBtn');
 const resetBtn = document.getElementById('resetBtn');
 const exportBtn = document.getElementById('exportBtn');
+const exportCurrentBtn = document.getElementById('exportCurrentBtn');
+const exportAllBtn = document.getElementById('exportAllBtn');
+const importDataBtn = document.getElementById('importDataBtn');
+const importDataFileInput = document.getElementById('importDataFile');
 const treeSelect = document.getElementById('treeSelect');
 const newTreeBtn = document.getElementById('newTreeBtn');
 const renameTreeBtn = document.getElementById('renameTreeBtn');
@@ -98,6 +102,81 @@ function ensureDefaultTree() {
   state.trees = [normalizeTree({ name: '我的家谱', people: [], relations: [] }, '我的家谱')];
   state.activeTreeId = state.trees[0].id;
   bindActiveTree();
+}
+
+function makeUniqueTreeName(baseName) {
+  const base = (baseName || '家谱').trim() || '家谱';
+  const names = new Set(state.trees.map((t) => t.name));
+  if (!names.has(base)) return base;
+  let i = 2;
+  while (names.has(`${base} (${i})`)) i += 1;
+  return `${base} (${i})`;
+}
+
+function downloadJson(payload, filename) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.download = filename;
+  a.href = url;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function buildSingleTreePayload(tree) {
+  return {
+    app: 'family-tree',
+    version: 2,
+    scope: 'single',
+    exportedAt: new Date().toISOString(),
+    tree,
+  };
+}
+
+function buildAllTreesPayload() {
+  return {
+    app: 'family-tree',
+    version: 2,
+    scope: 'all',
+    exportedAt: new Date().toISOString(),
+    activeTreeId: state.activeTreeId,
+    trees: state.trees,
+  };
+}
+
+function extractTreesFromImportPayload(payload) {
+  if (Array.isArray(payload?.trees)) {
+    return payload.trees.map((t, idx) => normalizeTree(t, `导入家谱 ${idx + 1}`));
+  }
+  if (payload?.tree && typeof payload.tree === 'object') {
+    return [normalizeTree(payload.tree, payload.tree.name || '导入家谱')];
+  }
+  if (Array.isArray(payload?.people) || Array.isArray(payload?.relations)) {
+    return [normalizeTree({
+      name: payload.name || '导入家谱',
+      people: Array.isArray(payload.people) ? payload.people : [],
+      relations: Array.isArray(payload.relations) ? payload.relations : [],
+    }, '导入家谱')];
+  }
+  return [];
+}
+
+function importTreesAdditive(payload) {
+  const incoming = extractTreesFromImportPayload(payload);
+  if (!incoming.length) return 0;
+  const added = [];
+  incoming.forEach((tree) => {
+    const next = normalizeTree(tree, '导入家谱');
+    next.id = uid();
+    next.name = makeUniqueTreeName(next.name);
+    state.trees.push(next);
+    added.push(next);
+  });
+  if (!state.activeTreeId && added.length) {
+    state.activeTreeId = added[0].id;
+    bindActiveTree();
+  }
+  return added.length;
 }
 
 function saveState() {
@@ -955,6 +1034,47 @@ clearAvatarBtn.addEventListener('click', () => {
   personAvatarInput.value = '';
   personAvatarFileInput.value = '';
   setAvatarPreview('');
+});
+
+exportCurrentBtn.addEventListener('click', () => {
+  const tree = getActiveTree();
+  if (!tree) return;
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
+  const safeName = tree.name.replace(/[\\\\/:*?\"<>|]/g, '_');
+  downloadJson(buildSingleTreePayload(tree), `family-tree-${safeName}-${stamp}.json`);
+});
+
+exportAllBtn.addEventListener('click', () => {
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
+  downloadJson(buildAllTreesPayload(), `family-tree-all-${stamp}.json`);
+});
+
+importDataBtn.addEventListener('click', () => {
+  importDataFileInput.value = '';
+  importDataFileInput.click();
+});
+
+importDataFileInput.addEventListener('change', async () => {
+  const file = importDataFileInput.files?.[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const parsed = JSON.parse(text);
+    const incoming = extractTreesFromImportPayload(parsed);
+    if (!incoming.length) {
+      window.alert('导入失败：文件格式不正确。');
+      return;
+    }
+    const ok = window.confirm(`将新增 ${incoming.length} 个家谱到当前本地数据，是否继续？`);
+    if (!ok) return;
+    const count = importTreesAdditive(parsed);
+    clearPersonForm();
+    state.selectedPersonId = null;
+    persistAndRender();
+    window.alert(`导入成功，新增 ${count} 个家谱。`);
+  } catch {
+    window.alert('导入失败：无法解析 JSON 文件。');
+  }
 });
 
 treeSvg.addEventListener('click', () => {
