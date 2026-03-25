@@ -164,6 +164,17 @@ button:disabled {
   flex-wrap: wrap;
 }
 
+.tree-manager {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+#treeSelect {
+  min-width: 150px;
+}
+
 .avatar-row {
   display: flex;
   justify-content: space-between;

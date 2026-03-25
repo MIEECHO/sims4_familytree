@@ -1,6 +1,8 @@
 const STORAGE_KEY = 'chronokin.v1';
 
 const state = {
+  trees: [],
+  activeTreeId: null,
   people: [],
   relations: [],
   editingPersonId: null,
@@ -35,6 +37,10 @@ const stats = document.getElementById('stats');
 const seedBtn = document.getElementById('seedBtn');
 const resetBtn = document.getElementById('resetBtn');
 const exportBtn = document.getElementById('exportBtn');
+const treeSelect = document.getElementById('treeSelect');
+const newTreeBtn = document.getElementById('newTreeBtn');
+const renameTreeBtn = document.getElementById('renameTreeBtn');
+const deleteTreeBtn = document.getElementById('deleteTreeBtn');
 
 const relationName = {
   parent: '父母',
@@ -46,32 +52,121 @@ function uid() {
   return Math.random().toString(36).slice(2, 10);
 }
 
+function normalizeTree(tree, fallbackName = '家谱') {
+  const people = Array.isArray(tree?.people) ? tree.people : [];
+  const relations = Array.isArray(tree?.relations) ? tree.relations : [];
+  return {
+    id: tree?.id || uid(),
+    name: (tree?.name || fallbackName).trim() || fallbackName,
+    people: people.map((p, idx) => ({
+      ...p,
+      avatar: p.avatar || '',
+      manualOrder: Number.isFinite(p.manualOrder) ? p.manualOrder : idx,
+    })),
+    relations: relations,
+  };
+}
+
+function getActiveTree() {
+  if (!state.trees.length) return null;
+  const found = state.trees.find((t) => t.id === state.activeTreeId);
+  return found || state.trees[0];
+}
+
+function bindActiveTree() {
+  const tree = getActiveTree();
+  if (!tree) {
+    state.people = [];
+    state.relations = [];
+    state.activeTreeId = null;
+    return;
+  }
+  state.activeTreeId = tree.id;
+  state.people = tree.people;
+  state.relations = tree.relations;
+}
+
+function syncActiveTree() {
+  const tree = getActiveTree();
+  if (!tree) return;
+  tree.people = state.people;
+  tree.relations = state.relations;
+}
+
+function ensureDefaultTree() {
+  if (state.trees.length) return;
+  state.trees = [normalizeTree({ name: '我的家谱', people: [], relations: [] }, '我的家谱')];
+  state.activeTreeId = state.trees[0].id;
+  bindActiveTree();
+}
+
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({
-    people: state.people,
-    relations: state.relations,
+    activeTreeId: state.activeTreeId,
+    trees: state.trees,
   }));
 }
 
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
+    if (!raw) {
+      ensureDefaultTree();
+      return;
+    }
     const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed.people) || !Array.isArray(parsed.relations)) return;
-    state.people = parsed.people.map((p, idx) => ({
-      ...p,
-      avatar: p.avatar || '',
-      manualOrder: Number.isFinite(p.manualOrder) ? p.manualOrder : idx,
-    }));
-    state.relations = parsed.relations;
+
+    if (Array.isArray(parsed.trees)) {
+      state.trees = parsed.trees.map((t, idx) => normalizeTree(t, `家谱 ${idx + 1}`));
+      state.activeTreeId = parsed.activeTreeId || state.trees[0]?.id || null;
+      bindActiveTree();
+      ensureDefaultTree();
+      return;
+    }
+
+    if (Array.isArray(parsed.people) || Array.isArray(parsed.relations)) {
+      state.trees = [normalizeTree({
+        id: uid(),
+        name: '我的家谱',
+        people: Array.isArray(parsed.people) ? parsed.people : [],
+        relations: Array.isArray(parsed.relations) ? parsed.relations : [],
+      }, '我的家谱')];
+      state.activeTreeId = state.trees[0].id;
+      bindActiveTree();
+      return;
+    }
+
+    ensureDefaultTree();
   } catch {
     // ignore corrupt data
+    ensureDefaultTree();
   }
 }
 
 function getPersonById(id) {
   return state.people.find((p) => p.id === id);
+}
+
+function setActiveTree(treeId) {
+  const tree = state.trees.find((t) => t.id === treeId);
+  if (!tree) return;
+  state.activeTreeId = tree.id;
+  bindActiveTree();
+  clearPersonForm();
+  state.selectedPersonId = null;
+  persistAndRender();
+}
+
+function renderTreeSelector() {
+  treeSelect.textContent = '';
+  state.trees.forEach((t) => {
+    const opt = document.createElement('option');
+    opt.value = t.id;
+    opt.textContent = t.name;
+    treeSelect.appendChild(opt);
+  });
+  if (state.activeTreeId) treeSelect.value = state.activeTreeId;
+  deleteTreeBtn.disabled = state.trees.length <= 1;
 }
 
 function ensureManualOrder() {
@@ -803,14 +898,17 @@ function persistAndRender() {
   dedupeRelations();
   sanitizeRelations();
   ensureManualOrder();
+  syncActiveTree();
   if (state.selectedPersonId && !getPersonById(state.selectedPersonId)) state.selectedPersonId = null;
   hideRelationHint();
+  renderTreeSelector();
   saveState();
   renderPersonOptions();
   renderPeopleList();
   renderRelationList();
   drawTree();
-  stats.textContent = `人物 ${state.people.length} · 关系 ${state.relations.length}`;
+  const tree = getActiveTree();
+  stats.textContent = `${tree?.name || '未命名家谱'} · 人物 ${state.people.length} · 关系 ${state.relations.length}`;
 }
 
 personForm.addEventListener('submit', (e) => {
@@ -864,6 +962,46 @@ treeSvg.addEventListener('click', () => {
   state.selectedPersonId = null;
   hideRelationHint();
   drawTree();
+});
+
+treeSelect.addEventListener('change', () => {
+  if (!treeSelect.value) return;
+  setActiveTree(treeSelect.value);
+});
+
+newTreeBtn.addEventListener('click', () => {
+  const name = window.prompt('请输入新家谱名称', `家谱 ${state.trees.length + 1}`);
+  if (name === null) return;
+  const safeName = name.trim();
+  if (!safeName) return;
+  const tree = normalizeTree({ id: uid(), name: safeName, people: [], relations: [] }, safeName);
+  state.trees.push(tree);
+  setActiveTree(tree.id);
+});
+
+renameTreeBtn.addEventListener('click', () => {
+  const tree = getActiveTree();
+  if (!tree) return;
+  const name = window.prompt('请输入家谱新名称', tree.name);
+  if (name === null) return;
+  const safeName = name.trim();
+  if (!safeName) return;
+  tree.name = safeName;
+  persistAndRender();
+});
+
+deleteTreeBtn.addEventListener('click', () => {
+  if (state.trees.length <= 1) return;
+  const tree = getActiveTree();
+  if (!tree) return;
+  const ok = window.confirm(`确认删除家谱“${tree.name}”吗？此操作不可撤销。`);
+  if (!ok) return;
+  state.trees = state.trees.filter((t) => t.id !== tree.id);
+  state.activeTreeId = state.trees[0]?.id || null;
+  bindActiveTree();
+  clearPersonForm();
+  state.selectedPersonId = null;
+  persistAndRender();
 });
 
 relationForm.addEventListener('submit', (e) => {
