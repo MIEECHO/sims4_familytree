@@ -483,9 +483,9 @@ function computeGenerations() {
 }
 
 function nodeColor(gender) {
-  if (gender === 'male') return 'rgba(38, 171, 255, 0.85)';
-  if (gender === 'female') return 'rgba(255, 117, 181, 0.85)';
-  return 'rgba(148, 178, 200, 0.85)';
+  if (gender === 'male') return 'rgba(199, 170, 127, 0.9)';
+  if (gender === 'female') return 'rgba(210, 154, 132, 0.9)';
+  return 'rgba(198, 181, 153, 0.9)';
 }
 
 function makeSvgEl(name, attrs = {}) {
@@ -542,7 +542,7 @@ function drawTree() {
     const path = makeSvgEl('path', {
       d,
       class: 'edge',
-      stroke: '#ffffff',
+      stroke: '#7b4a33',
       opacity: 0.9,
     });
     edgeLayer.appendChild(path);
@@ -553,7 +553,7 @@ function drawTree() {
       x: mid.x,
       y: mid.y,
       class: 'edge label',
-      fill: '#ffffff',
+      fill: '#3d2618',
       'text-anchor': 'middle',
       'dominant-baseline': 'middle',
     });
@@ -666,7 +666,7 @@ function drawTree() {
       edgeLayer.appendChild(makeSvgEl('path', {
         d: `M ${barLeft} ${childBarY} L ${barRight} ${childBarY}`,
         class: 'edge',
-        stroke: '#ffffff',
+        stroke: '#7b4a33',
         opacity: 0.9,
       }));
     }
@@ -677,7 +677,7 @@ function drawTree() {
       edgeLayer.appendChild(makeSvgEl('path', {
         d: `M ${cx} ${childBarY} L ${cx} ${topY}`,
         class: 'edge',
-        stroke: '#ffffff',
+        stroke: '#7b4a33',
         opacity: 0.9,
       }));
     }
@@ -709,7 +709,7 @@ function drawTree() {
       width: nodeW,
       height: nodeH,
       fill: nodeColor(person.gender),
-      stroke: 'rgba(227, 245, 255, 0.8)',
+      stroke: 'rgba(113, 73, 45, 0.68)',
     }));
 
     const avatarCx = pos.x + 24;
@@ -719,8 +719,8 @@ function drawTree() {
       cx: avatarCx,
       cy: avatarCy,
       r: avatarR + 1,
-      fill: 'rgba(4, 14, 23, 0.65)',
-      stroke: 'rgba(227, 245, 255, 0.7)',
+      fill: 'rgba(116, 79, 50, 0.24)',
+      stroke: 'rgba(116, 77, 44, 0.65)',
       'stroke-width': 1,
     }));
     if (person.avatar) {
@@ -743,7 +743,7 @@ function drawTree() {
         y: avatarCy + 1,
         'font-size': 11,
         'font-weight': 700,
-        fill: '#d0edf9',
+        fill: '#4a2c1a',
       });
       initial.textContent = person.name.slice(0, 1);
       g.appendChild(initial);
