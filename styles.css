@@ -371,6 +371,10 @@ button:disabled {
   backdrop-filter: blur(2px);
 }
 
+.modal-backdrop[hidden] {
+  display: none !important;
+}
+
 .modal-card {
   width: min(92vw, 430px);
   padding: 14px;
