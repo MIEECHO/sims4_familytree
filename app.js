@@ -20,6 +20,11 @@ const personAvatarInput = document.getElementById('personAvatar');
 const personAvatarFileInput = document.getElementById('personAvatarFile');
 const avatarPreview = document.getElementById('avatarPreview');
 const avatarPlaceholder = document.getElementById('avatarPlaceholder');
+const avatarCropModal = document.getElementById('avatarCropModal');
+const avatarCropCanvas = document.getElementById('avatarCropCanvas');
+const avatarCropZoom = document.getElementById('avatarCropZoom');
+const avatarCropCancelBtn = document.getElementById('avatarCropCancelBtn');
+const avatarCropApplyBtn = document.getElementById('avatarCropApplyBtn');
 const clearAvatarBtn = document.getElementById('clearAvatarBtn');
 const cancelEditBtn = document.getElementById('cancelEditBtn');
 const peopleList = document.getElementById('peopleList');
@@ -52,6 +57,19 @@ const relationName = {
   parent: '父母',
   spouse: '配偶',
   sibling: '兄弟姐妹',
+};
+
+const AVATAR_CROP_SIZE = 320;
+const avatarCropState = {
+  img: null,
+  scale: 1,
+  minScale: 1,
+  maxScale: 3,
+  offsetX: 0,
+  offsetY: 0,
+  dragging: false,
+  lastX: 0,
+  lastY: 0,
 };
 
 function uid() {
@@ -329,6 +347,66 @@ function setAvatarPreview(src) {
   }
   avatarPreview.src = src;
   wrap.classList.add('has-avatar');
+}
+
+function clampAvatarCropOffsets() {
+  if (!avatarCropState.img) return;
+  const w = avatarCropState.img.width * avatarCropState.scale;
+  const h = avatarCropState.img.height * avatarCropState.scale;
+  const c = AVATAR_CROP_SIZE;
+
+  if (w <= c) avatarCropState.offsetX = (c - w) / 2;
+  else avatarCropState.offsetX = Math.min(0, Math.max(c - w, avatarCropState.offsetX));
+
+  if (h <= c) avatarCropState.offsetY = (c - h) / 2;
+  else avatarCropState.offsetY = Math.min(0, Math.max(c - h, avatarCropState.offsetY));
+}
+
+function drawAvatarCropCanvas() {
+  if (!avatarCropState.img) return;
+  const ctx = avatarCropCanvas.getContext('2d');
+  if (!ctx) return;
+  const c = AVATAR_CROP_SIZE;
+  ctx.clearRect(0, 0, c, c);
+  ctx.fillStyle = '#efe3cd';
+  ctx.fillRect(0, 0, c, c);
+
+  const drawW = avatarCropState.img.width * avatarCropState.scale;
+  const drawH = avatarCropState.img.height * avatarCropState.scale;
+  ctx.drawImage(avatarCropState.img, avatarCropState.offsetX, avatarCropState.offsetY, drawW, drawH);
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(74, 47, 29, 0.55)';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(0.75, 0.75, c - 1.5, c - 1.5);
+  ctx.restore();
+}
+
+function closeAvatarCropModal() {
+  avatarCropState.img = null;
+  avatarCropState.dragging = false;
+  avatarCropModal.hidden = true;
+  avatarCropCanvas.classList.remove('dragging');
+  personAvatarFileInput.value = '';
+}
+
+function openAvatarCropModal(src) {
+  const img = new Image();
+  img.onload = () => {
+    avatarCropState.img = img;
+    avatarCropState.minScale = Math.max(AVATAR_CROP_SIZE / img.width, AVATAR_CROP_SIZE / img.height);
+    avatarCropState.maxScale = avatarCropState.minScale * 3;
+    avatarCropState.scale = avatarCropState.minScale;
+    avatarCropState.offsetX = (AVATAR_CROP_SIZE - img.width * avatarCropState.scale) / 2;
+    avatarCropState.offsetY = (AVATAR_CROP_SIZE - img.height * avatarCropState.scale) / 2;
+    clampAvatarCropOffsets();
+    avatarCropZoom.min = String(avatarCropState.minScale);
+    avatarCropZoom.max = String(avatarCropState.maxScale);
+    avatarCropZoom.value = String(avatarCropState.scale);
+    avatarCropModal.hidden = false;
+    drawAvatarCropCanvas();
+  };
+  img.src = src;
 }
 
 function renderPeopleList() {
@@ -1064,8 +1142,8 @@ personAvatarFileInput.addEventListener('change', () => {
   const reader = new FileReader();
   reader.onload = () => {
     const src = typeof reader.result === 'string' ? reader.result : '';
-    personAvatarInput.value = src;
-    setAvatarPreview(src);
+    if (!src) return;
+    openAvatarCropModal(src);
   };
   reader.readAsDataURL(file);
 });
@@ -1074,6 +1152,81 @@ clearAvatarBtn.addEventListener('click', () => {
   personAvatarInput.value = '';
   personAvatarFileInput.value = '';
   setAvatarPreview('');
+});
+
+avatarCropZoom.addEventListener('input', () => {
+  if (!avatarCropState.img) return;
+  const oldScale = avatarCropState.scale;
+  const newScale = Number(avatarCropZoom.value);
+  if (!Number.isFinite(newScale) || newScale <= 0) return;
+
+  const centerX = (AVATAR_CROP_SIZE / 2 - avatarCropState.offsetX) / oldScale;
+  const centerY = (AVATAR_CROP_SIZE / 2 - avatarCropState.offsetY) / oldScale;
+  avatarCropState.scale = newScale;
+  avatarCropState.offsetX = AVATAR_CROP_SIZE / 2 - centerX * newScale;
+  avatarCropState.offsetY = AVATAR_CROP_SIZE / 2 - centerY * newScale;
+  clampAvatarCropOffsets();
+  drawAvatarCropCanvas();
+});
+
+avatarCropCanvas.addEventListener('mousedown', (e) => {
+  if (!avatarCropState.img) return;
+  avatarCropState.dragging = true;
+  avatarCropState.lastX = e.clientX;
+  avatarCropState.lastY = e.clientY;
+  avatarCropCanvas.classList.add('dragging');
+});
+
+window.addEventListener('mousemove', (e) => {
+  if (!avatarCropState.dragging || !avatarCropState.img) return;
+  const dx = e.clientX - avatarCropState.lastX;
+  const dy = e.clientY - avatarCropState.lastY;
+  avatarCropState.lastX = e.clientX;
+  avatarCropState.lastY = e.clientY;
+  avatarCropState.offsetX += dx;
+  avatarCropState.offsetY += dy;
+  clampAvatarCropOffsets();
+  drawAvatarCropCanvas();
+});
+
+window.addEventListener('mouseup', () => {
+  avatarCropState.dragging = false;
+  avatarCropCanvas.classList.remove('dragging');
+});
+
+avatarCropCancelBtn.addEventListener('click', () => {
+  closeAvatarCropModal();
+});
+
+avatarCropModal.addEventListener('click', (e) => {
+  if (e.target === avatarCropModal) closeAvatarCropModal();
+});
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !avatarCropModal.hidden) closeAvatarCropModal();
+});
+
+avatarCropApplyBtn.addEventListener('click', () => {
+  if (!avatarCropState.img) return;
+  const outSize = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = outSize;
+  canvas.height = outSize;
+  const ctx = canvas.getContext('2d');
+  const ratio = outSize / AVATAR_CROP_SIZE;
+
+  ctx.drawImage(
+    avatarCropState.img,
+    avatarCropState.offsetX * ratio,
+    avatarCropState.offsetY * ratio,
+    avatarCropState.img.width * avatarCropState.scale * ratio,
+    avatarCropState.img.height * avatarCropState.scale * ratio,
+  );
+
+  const src = canvas.toDataURL('image/png');
+  personAvatarInput.value = src;
+  setAvatarPreview(src);
+  closeAvatarCropModal();
 });
 
 exportCurrentBtn.addEventListener('click', () => {
