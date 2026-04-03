@@ -611,47 +611,51 @@ function computeGenerations() {
   const gen = new Map();
   for (const p of state.people) gen.set(p.id, 0);
 
+  const enforceParentConstraints = () => {
+    let changed = false;
+    for (const r of state.relations) {
+      if (r.type !== 'parent') continue;
+      const parentGen = gen.get(r.from) ?? 0;
+      const childGen = gen.get(r.to) ?? 0;
+      if (childGen <= parentGen) {
+        gen.set(r.to, parentGen + 1);
+        changed = true;
+      }
+    }
+    return changed;
+  };
+
+  // Base layering from parent->child chains.
   let changed = true;
   let rounds = 0;
   while (changed && rounds < state.people.length + 2) {
-    changed = false;
+    changed = enforceParentConstraints();
     rounds += 1;
-    for (const r of state.relations) {
-      if (r.type !== 'parent') continue;
-      const parentGen = gen.get(r.from) ?? 0;
-      const childGen = gen.get(r.to) ?? 0;
-      if (childGen <= parentGen) {
-        gen.set(r.to, parentGen + 1);
-        changed = true;
-      }
-    }
   }
 
-  for (const r of state.relations) {
-    if (r.type !== 'spouse' && r.type !== 'sibling') continue;
-    const a = gen.get(r.from) ?? 0;
-    const b = gen.get(r.to) ?? 0;
-    const avg = Math.round((a + b) / 2);
-    gen.set(r.from, avg);
-    gen.set(r.to, avg);
-  }
-
-  // Re-apply strict parent-child constraints after spouse/sibling leveling.
-  // This prevents cross-generation overlap caused by averaging.
-  changed = true;
+  // Keep spouses on the same level without violating parent-child ordering.
   rounds = 0;
-  while (changed && rounds < state.people.length + 2) {
+  changed = true;
+  while (changed && rounds < state.people.length * 3 + 3) {
     changed = false;
     rounds += 1;
+
     for (const r of state.relations) {
-      if (r.type !== 'parent') continue;
-      const parentGen = gen.get(r.from) ?? 0;
-      const childGen = gen.get(r.to) ?? 0;
-      if (childGen <= parentGen) {
-        gen.set(r.to, parentGen + 1);
+      if (r.type !== 'spouse') continue;
+      const a = gen.get(r.from) ?? 0;
+      const b = gen.get(r.to) ?? 0;
+      const target = Math.max(a, b);
+      if (a !== target) {
+        gen.set(r.from, target);
+        changed = true;
+      }
+      if (b !== target) {
+        gen.set(r.to, target);
         changed = true;
       }
     }
+
+    if (enforceParentConstraints()) changed = true;
   }
 
   const columns = new Map();
