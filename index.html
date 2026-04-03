@@ -18,6 +18,13 @@
         <p>可编辑家谱系统</p>
       </div>
       <div class="toolbar">
+        <div class="layout-mode">
+          <label for="layoutModeSelect">布局策略</label>
+          <select id="layoutModeSelect" aria-label="布局策略">
+            <option value="spouse_level">优先配偶同层</option>
+            <option value="shortest_lines">优先最短连线</option>
+          </select>
+        </div>
         <div class="tree-manager">
           <select id="treeSelect" aria-label="选择家谱"></select>
           <button id="newTreeBtn" class="ghost">新建家谱</button>

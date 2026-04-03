@@ -3,6 +3,7 @@ const STORAGE_KEY = 'chronokin.v1';
 const state = {
   trees: [],
   activeTreeId: null,
+  layoutMode: 'spouse_level',
   people: [],
   relations: [],
   editingPersonId: null,
@@ -41,6 +42,7 @@ const exportCurrentBtn = document.getElementById('exportCurrentBtn');
 const exportAllBtn = document.getElementById('exportAllBtn');
 const importDataBtn = document.getElementById('importDataBtn');
 const importDataFileInput = document.getElementById('importDataFile');
+const layoutModeSelect = document.getElementById('layoutModeSelect');
 const treeSelect = document.getElementById('treeSelect');
 const newTreeBtn = document.getElementById('newTreeBtn');
 const renameTreeBtn = document.getElementById('renameTreeBtn');
@@ -129,6 +131,7 @@ function buildSingleTreePayload(tree) {
     version: 2,
     scope: 'single',
     exportedAt: new Date().toISOString(),
+    layoutMode: state.layoutMode,
     tree,
   };
 }
@@ -140,6 +143,7 @@ function buildAllTreesPayload() {
     scope: 'all',
     exportedAt: new Date().toISOString(),
     activeTreeId: state.activeTreeId,
+    layoutMode: state.layoutMode,
     trees: state.trees,
   };
 }
@@ -164,6 +168,9 @@ function extractTreesFromImportPayload(payload) {
 function importTreesAdditive(payload) {
   const incoming = extractTreesFromImportPayload(payload);
   if (!incoming.length) return 0;
+  if (payload?.layoutMode === 'shortest_lines' || payload?.layoutMode === 'spouse_level') {
+    state.layoutMode = payload.layoutMode;
+  }
   const added = [];
   incoming.forEach((tree) => {
     const next = normalizeTree(tree, '导入家谱');
@@ -182,6 +189,7 @@ function importTreesAdditive(payload) {
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({
     activeTreeId: state.activeTreeId,
+    layoutMode: state.layoutMode,
     trees: state.trees,
   }));
 }
@@ -198,6 +206,9 @@ function loadState() {
     if (Array.isArray(parsed.trees)) {
       state.trees = parsed.trees.map((t, idx) => normalizeTree(t, `家谱 ${idx + 1}`));
       state.activeTreeId = parsed.activeTreeId || state.trees[0]?.id || null;
+      if (parsed.layoutMode === 'shortest_lines' || parsed.layoutMode === 'spouse_level') {
+        state.layoutMode = parsed.layoutMode;
+      }
       bindActiveTree();
       ensureDefaultTree();
       return;
@@ -246,6 +257,10 @@ function renderTreeSelector() {
   });
   if (state.activeTreeId) treeSelect.value = state.activeTreeId;
   deleteTreeBtn.disabled = state.trees.length <= 1;
+}
+
+function renderLayoutModeSelector() {
+  layoutModeSelect.value = state.layoutMode;
 }
 
 function ensureManualOrder() {
@@ -633,29 +648,31 @@ function computeGenerations() {
     rounds += 1;
   }
 
-  // Keep spouses on the same level without violating parent-child ordering.
-  rounds = 0;
-  changed = true;
-  while (changed && rounds < state.people.length * 3 + 3) {
-    changed = false;
-    rounds += 1;
+  if (state.layoutMode === 'spouse_level') {
+    // Keep spouses on the same level without violating parent-child ordering.
+    rounds = 0;
+    changed = true;
+    while (changed && rounds < state.people.length * 3 + 3) {
+      changed = false;
+      rounds += 1;
 
-    for (const r of state.relations) {
-      if (r.type !== 'spouse') continue;
-      const a = gen.get(r.from) ?? 0;
-      const b = gen.get(r.to) ?? 0;
-      const target = Math.max(a, b);
-      if (a !== target) {
-        gen.set(r.from, target);
-        changed = true;
+      for (const r of state.relations) {
+        if (r.type !== 'spouse') continue;
+        const a = gen.get(r.from) ?? 0;
+        const b = gen.get(r.to) ?? 0;
+        const target = Math.max(a, b);
+        if (a !== target) {
+          gen.set(r.from, target);
+          changed = true;
+        }
+        if (b !== target) {
+          gen.set(r.to, target);
+          changed = true;
+        }
       }
-      if (b !== target) {
-        gen.set(r.to, target);
-        changed = true;
-      }
+
+      if (enforceParentConstraints()) changed = true;
     }
-
-    if (enforceParentConstraints()) changed = true;
   }
 
   const columns = new Map();
@@ -1002,6 +1019,7 @@ function persistAndRender() {
   syncActiveTree();
   if (state.selectedPersonId && !getPersonById(state.selectedPersonId)) state.selectedPersonId = null;
   hideRelationHint();
+  renderLayoutModeSelector();
   renderTreeSelector();
   saveState();
   renderPersonOptions();
@@ -1104,6 +1122,13 @@ treeSvg.addEventListener('click', () => {
   state.selectedPersonId = null;
   hideRelationHint();
   drawTree();
+});
+
+layoutModeSelect.addEventListener('change', () => {
+  const mode = layoutModeSelect.value;
+  if (mode !== 'spouse_level' && mode !== 'shortest_lines') return;
+  state.layoutMode = mode;
+  persistAndRender();
 });
 
 treeSelect.addEventListener('change', () => {

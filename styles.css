@@ -164,6 +164,22 @@ button:disabled {
   flex-wrap: wrap;
 }
 
+.layout-mode {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.layout-mode label {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+}
+
+#layoutModeSelect {
+  min-width: 150px;
+}
+
 .tree-manager {
   display: flex;
   gap: 8px;
