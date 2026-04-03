@@ -636,6 +636,24 @@ function computeGenerations() {
     gen.set(r.to, avg);
   }
 
+  // Re-apply strict parent-child constraints after spouse/sibling leveling.
+  // This prevents cross-generation overlap caused by averaging.
+  changed = true;
+  rounds = 0;
+  while (changed && rounds < state.people.length + 2) {
+    changed = false;
+    rounds += 1;
+    for (const r of state.relations) {
+      if (r.type !== 'parent') continue;
+      const parentGen = gen.get(r.from) ?? 0;
+      const childGen = gen.get(r.to) ?? 0;
+      if (childGen <= parentGen) {
+        gen.set(r.to, parentGen + 1);
+        changed = true;
+      }
+    }
+  }
+
   const columns = new Map();
   for (const p of state.people) {
     const g = gen.get(p.id) ?? 0;
