@@ -1065,8 +1065,11 @@ function drawTree() {
 
     g.addEventListener('click', (e) => {
       e.stopPropagation();
-      state.selectedPersonId = state.selectedPersonId === person.id ? null : person.id;
+      // Click node to edit this person directly from the tree view.
+      setPersonForm(person);
+      state.selectedPersonId = person.id;
       hideRelationHint();
+      personNameInput.focus();
       drawTree();
     });
     g.addEventListener('mouseenter', (evt) => {
